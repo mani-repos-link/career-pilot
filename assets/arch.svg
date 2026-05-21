@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" font-family="ui-sans-serif, system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="1000" fill="#fafafa"/>
+
+  <text x="700" y="35" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">Local Self-Hosted Chatbot — Architecture</text>
+  <text x="700" y="58" text-anchor="middle" font-size="12" fill="#64748b">Go backend · Vue 3 frontend · SQLite + sqlite-vec · OpenAI-compatible provider layer</text>
+
+  <!-- USER -->
+  <circle cx="70" cy="160" r="22" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="70" y="166" text-anchor="middle" font-size="14">User</text>
+  <text x="70" y="205" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">Browser</text>
+
+  <!-- FRONTEND -->
+  <rect x="160" y="100" width="220" height="140" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="270" y="125" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Frontend (Vue 3 SPA)</text>
+  <line x1="180" y1="135" x2="360" y2="135" stroke="#93c5fd"/>
+  <text x="175" y="155" font-size="11" fill="#1e40af">• Session sidebar</text>
+  <text x="175" y="172" font-size="11" fill="#1e40af">• Chat pane (streaming)</text>
+  <text x="175" y="189" font-size="11" fill="#1e40af">• Model selector</text>
+  <text x="175" y="206" font-size="11" fill="#1e40af">• TanStack Query</text>
+  <text x="175" y="223" font-size="11" fill="#1e40af">• SSE via ReadableStream</text>
+
+  <line x1="95" y1="160" x2="155" y2="160" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="125" y="150" text-anchor="middle" font-size="10" fill="#475569">prompt</text>
+
+  <line x1="385" y1="160" x2="445" y2="160" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="415" y="150" text-anchor="middle" font-size="10" fill="#475569">HTTP/SSE</text>
+
+  <!-- BACKEND -->
+  <rect x="450" y="80" width="600" height="540" rx="12" fill="#f1f5f9" stroke="#334155" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="750" y="105" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Backend (Go · single binary)</text>
+
+  <rect x="475" y="125" width="250" height="70" rx="8" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="600" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="#0c4a6e">1. HTTP Router (Chi)</text>
+  <text x="600" y="167" text-anchor="middle" font-size="10" fill="#0369a1">POST /sessions · GET /sessions</text>
+  <text x="600" y="182" text-anchor="middle" font-size="10" fill="#0369a1">POST /sessions/:id/messages (SSE)</text>
+
+  <rect x="775" y="125" width="250" height="70" rx="8" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="900" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="#0c4a6e">2. Session Manager</text>
+  <text x="900" y="167" text-anchor="middle" font-size="10" fill="#0369a1">Create/list/rename/delete sessions</text>
+  <text x="900" y="182" text-anchor="middle" font-size="10" fill="#0369a1">Persist messages on completion</text>
+
+  <rect x="475" y="215" width="550" height="120" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="2"/>
+  <text x="750" y="238" text-anchor="middle" font-size="14" font-weight="700" fill="#713f12">3. Context Builder (the brain)</text>
+  <text x="495" y="262" font-size="11" fill="#78350f">a. Load system prompt + session running summary</text>
+  <text x="495" y="280" font-size="11" fill="#78350f">b. Pull last N messages verbatim (recent window)</text>
+  <text x="495" y="298" font-size="11" fill="#78350f">c. Embed new user msg → semantic search older messages via sqlite-vec → top-K</text>
+  <text x="495" y="316" font-size="11" fill="#78350f">d. Token budgeter (tiktoken-go) trims to fit model context limit</text>
+
+  <rect x="475" y="355" width="250" height="70" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="600" y="378" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">4. Embedding Service</text>
+  <text x="600" y="397" text-anchor="middle" font-size="10" fill="#166534">Text → vector (768-dim)</text>
+  <text x="600" y="412" text-anchor="middle" font-size="10" fill="#166534">Stores model name alongside</text>
+
+  <rect x="775" y="355" width="250" height="70" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="900" y="378" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">5. Summarizer (async)</text>
+  <text x="900" y="397" text-anchor="middle" font-size="10" fill="#166534">When history exceeds threshold:</text>
+  <text x="900" y="412" text-anchor="middle" font-size="10" fill="#166534">condense old turns into summary</text>
+
+  <rect x="475" y="445" width="550" height="80" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="750" y="468" text-anchor="middle" font-size="13" font-weight="700" fill="#4c1d95">6. Provider Client (OpenAI-compatible interface)</text>
+  <text x="750" y="487" text-anchor="middle" font-size="10" fill="#5b21b6">interface Provider { Chat(ctx, messages, tools) returns stream } · model registry · fallback chain</text>
+  <text x="750" y="504" text-anchor="middle" font-size="10" fill="#5b21b6">Adapters: OpenRouter · Ollama · HuggingFace · (future: Anthropic, Groq, local vLLM)</text>
+  <text x="750" y="519" text-anchor="middle" font-size="10" fill="#5b21b6">Handles: retries, rate limits, API keys, cost tracking</text>
+
+  <rect x="475" y="545" width="250" height="60" rx="8" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="600" y="568" text-anchor="middle" font-size="13" font-weight="700" fill="#0c4a6e">7. Streaming Proxy</text>
+  <text x="600" y="586" text-anchor="middle" font-size="10" fill="#0369a1">SSE in to SSE out, accumulates</text>
+  <text x="600" y="599" text-anchor="middle" font-size="10" fill="#0369a1">full reply for persistence</text>
+
+  <rect x="775" y="545" width="250" height="60" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="900" y="568" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">8. Tool Executor (phase 2)</text>
+  <text x="900" y="586" text-anchor="middle" font-size="10" fill="#64748b">Agentic loop: tool_calls then</text>
+  <text x="900" y="599" text-anchor="middle" font-size="10" fill="#64748b">exec then tool_result then resend</text>
+
+  <line x1="600" y1="197" x2="600" y2="213" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="900" y1="197" x2="900" y2="213" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="600" y1="337" x2="600" y2="353" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <line x1="900" y1="337" x2="900" y2="353" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <line x1="750" y1="427" x2="750" y2="443" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="600" y1="527" x2="600" y2="543" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="900" y1="527" x2="900" y2="543" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arrow)"/>
+
+  <!-- STORAGE -->
+  <rect x="1100" y="120" width="260" height="380" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="1230" y="145" text-anchor="middle" font-size="14" font-weight="700" fill="#7f1d1d">Storage (single SQLite file)</text>
+  <text x="1230" y="162" text-anchor="middle" font-size="10" fill="#991b1b">WAL mode · single-writer goroutine</text>
+
+  <rect x="1115" y="180" width="230" height="55" rx="6" fill="#fff" stroke="#fca5a5"/>
+  <text x="1230" y="200" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">sessions</text>
+  <text x="1230" y="217" text-anchor="middle" font-size="10" fill="#991b1b">id, title, system_prompt,</text>
+  <text x="1230" y="229" text-anchor="middle" font-size="10" fill="#991b1b">model, timestamps</text>
+
+  <rect x="1115" y="245" width="230" height="55" rx="6" fill="#fff" stroke="#fca5a5"/>
+  <text x="1230" y="265" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">messages</text>
+  <text x="1230" y="282" text-anchor="middle" font-size="10" fill="#991b1b">id, session_id, role, content,</text>
+  <text x="1230" y="294" text-anchor="middle" font-size="10" fill="#991b1b">tokens, created_at</text>
+
+  <rect x="1115" y="310" width="230" height="55" rx="6" fill="#fff" stroke="#fca5a5"/>
+  <text x="1230" y="330" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">message_vectors (vec0)</text>
+  <text x="1230" y="347" text-anchor="middle" font-size="10" fill="#991b1b">message_id, embedding[768],</text>
+  <text x="1230" y="359" text-anchor="middle" font-size="10" fill="#991b1b">embedding_model</text>
+
+  <rect x="1115" y="375" width="230" height="55" rx="6" fill="#fff" stroke="#fca5a5"/>
+  <text x="1230" y="395" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">summaries</text>
+  <text x="1230" y="412" text-anchor="middle" font-size="10" fill="#991b1b">session_id, content,</text>
+  <text x="1230" y="424" text-anchor="middle" font-size="10" fill="#991b1b">covers_up_to_message_id</text>
+
+  <rect x="1115" y="440" width="230" height="50" rx="6" fill="#fff" stroke="#fca5a5"/>
+  <text x="1230" y="460" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">config / api_keys</text>
+  <text x="1230" y="477" text-anchor="middle" font-size="10" fill="#991b1b">encrypted provider credentials</text>
+
+  <line x1="1025" y1="180" x2="1095" y2="200" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <line x1="1025" y1="270" x2="1095" y2="270" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <line x1="725" y1="390" x2="1095" y2="335" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <line x1="1025" y1="400" x2="1095" y2="400" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+
+  <!-- PROVIDERS -->
+  <rect x="450" y="660" width="600" height="220" rx="12" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="750" y="685" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">External Providers (OpenAI-compatible APIs)</text>
+
+  <rect x="475" y="705" width="270" height="155" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="610" y="727" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">LLM (chat) providers</text>
+  <rect x="490" y="740" width="115" height="30" rx="4" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="547" y="759" text-anchor="middle" font-size="11" fill="#1e3a8a">OpenRouter</text>
+  <rect x="615" y="740" width="115" height="30" rx="4" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="672" y="759" text-anchor="middle" font-size="11" fill="#1e3a8a">HuggingFace</text>
+  <rect x="490" y="780" width="115" height="30" rx="4" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="547" y="799" text-anchor="middle" font-size="11" fill="#1e3a8a">Replicate</text>
+  <rect x="615" y="780" width="115" height="30" rx="4" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="672" y="799" text-anchor="middle" font-size="11" fill="#1e3a8a">Ollama (local)</text>
+  <text x="610" y="838" text-anchor="middle" font-size="10" fill="#1e40af">Llama · Mistral · Qwen · Gemini · Claude · GPT</text>
+  <text x="610" y="852" text-anchor="middle" font-size="10" fill="#1e40af">Different models per session if you want</text>
+
+  <rect x="755" y="705" width="270" height="155" rx="8" fill="#fff" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="890" y="727" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">Embedding providers</text>
+  <rect x="770" y="740" width="240" height="30" rx="4" fill="#dcfce7" stroke="#4ade80"/>
+  <text x="890" y="759" text-anchor="middle" font-size="11" fill="#14532d">Ollama · nomic-embed-text (recommended)</text>
+  <rect x="770" y="780" width="240" height="30" rx="4" fill="#dcfce7" stroke="#4ade80"/>
+  <text x="890" y="799" text-anchor="middle" font-size="11" fill="#14532d">Jina / Voyage (free tier, cloud)</text>
+  <text x="890" y="830" text-anchor="middle" font-size="10" fill="#166534" font-weight="600">Lock to ONE model.</text>
+  <text x="890" y="845" text-anchor="middle" font-size="10" fill="#166534">Switching = re-embed everything.</text>
+  <text x="890" y="858" text-anchor="middle" font-size="10" fill="#166534">Different model = different vector space.</text>
+
+  <line x1="600" y1="525" x2="600" y2="703" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)" stroke-dasharray="6,3"/>
+  <line x1="600" y1="425" x2="890" y2="703" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowGreen)" stroke-dasharray="6,3"/>
+
+  <!-- LEGENDS -->
+  <rect x="60" y="780" width="370" height="180" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="245" y="803" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Request flow (new user message)</text>
+  <text x="75" y="828" font-size="11" fill="#334155">1. Frontend POSTs prompt to Router</text>
+  <text x="75" y="847" font-size="11" fill="#334155">2. Session Manager loads session + history</text>
+  <text x="75" y="866" font-size="11" fill="#334155">3. Context Builder assembles messages[]:</text>
+  <text x="92" y="883" font-size="11" fill="#475569">summary + retrieved + recent + new</text>
+  <text x="75" y="902" font-size="11" fill="#334155">4. Provider Client streams to chosen LLM</text>
+  <text x="75" y="921" font-size="11" fill="#334155">5. Streaming Proxy forwards SSE to frontend</text>
+  <text x="75" y="940" font-size="11" fill="#334155">6. On done: persist msg, embed, maybe summarize</text>
+
+  <rect x="450" y="900" width="600" height="80" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="750" y="922" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a">Build order (ship dumb first)</text>
+  <text x="465" y="943" font-size="11" fill="#334155">v0.1 — Router + Session Mgr + Provider Client + Streaming + sessions/messages tables</text>
+  <text x="465" y="960" font-size="11" fill="#334155">v0.2 — Context Builder with sliding window + token budget</text>
+  <text x="465" y="975" font-size="11" fill="#334155">v0.3 — Embedding Service + vector table + retrieval     v0.4 — Summarizer     v0.5 — Tool Executor</text>
+
+  <rect x="1100" y="540" width="260" height="320" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="1230" y="563" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Key design choices</text>
+  <text x="1115" y="588" font-size="11" fill="#334155" font-weight="600">Provider abstraction</text>
+  <text x="1115" y="604" font-size="10" fill="#475569">All providers behind one Go</text>
+  <text x="1115" y="617" font-size="10" fill="#475569">interface. Swap without rewrites.</text>
+
+  <text x="1115" y="640" font-size="11" fill="#334155" font-weight="600">Embedding != LLM</text>
+  <text x="1115" y="656" font-size="10" fill="#475569">Two independent model choices.</text>
+  <text x="1115" y="669" font-size="10" fill="#475569">User can switch chat model freely;</text>
+  <text x="1115" y="682" font-size="10" fill="#475569">embedding model stays locked.</text>
+
+  <text x="1115" y="705" font-size="11" fill="#334155" font-weight="600">Streaming end-to-end</text>
+  <text x="1115" y="721" font-size="10" fill="#475569">SSE from LLM to browser.</text>
+  <text x="1115" y="734" font-size="10" fill="#475569">Persist on completion, not before.</text>
+
+  <text x="1115" y="757" font-size="11" fill="#334155" font-weight="600">Single SQLite file</text>
+  <text x="1115" y="773" font-size="10" fill="#475569">Chat + vectors + summaries +</text>
+  <text x="1115" y="786" font-size="10" fill="#475569">config all in one file. Backup = cp.</text>
+
+  <text x="1115" y="809" font-size="11" fill="#334155" font-weight="600">Fallback chain</text>
+  <text x="1115" y="825" font-size="10" fill="#475569">Free models fail/get deprecated.</text>
+  <text x="1115" y="838" font-size="10" fill="#475569">Config: try A then fall back to B.</text>
+</svg>

@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: careerpilot-postgres
+    environment:
+      POSTGRES_USER: careerpilot
+      POSTGRES_PASSWORD: careerpilot
+      POSTGRES_DB: careerpilot
+    volumes:
+      - careerpilot-pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careerpilot -d careerpilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # pyapi:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/pyapi/Dockerfile
+  #   container_name: careerpilot-pyapi
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://careerpilot:careerpilot@postgres:5432/careerpilot
+  #   volumes:
+  #     - careerpilot-data:/data
+  #   ports:
+  #     - "${PYAPI_PORT:-8080}:8080"
+  #   healthcheck:
+  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz').read()"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #   restart: unless-stopped
+
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/web/Dockerfile
+  #     args:
+  #       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-/api}"
+  #   container_name: careerpilot-web
+  #   depends_on:
+  #     pyapi:
+  #       condition: service_healthy
+  #   ports:
+  #     - "${WEB_PORT:-5173}:80"
+  #   restart: unless-stopped
+
+volumes:
+  careerpilot-pgdata:
+  careerpilot-data:

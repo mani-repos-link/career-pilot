@@ -1,0 +1,23 @@
+{
+  "name": "careerpilot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp run --filter web --filter pyapi --parallel dev",
+    "dev:web": "vp run web#dev",
+    "dev:api": "vp run pyapi#dev",
+    "dev:goapi": "vp run api#dev",
+    "last-details": "vp run --last-details",
+    "build": "vp run -r build",
+    "test": "vp run -r test",
+    "ready": "vp fmt && vp lint --type-aware && vp run test -r && vp run build -r"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

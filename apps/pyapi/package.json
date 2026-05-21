@@ -1,0 +1,10 @@
+{
+  "name": "pyapi",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "python -m pyapi",
+    "build": "python -m compileall pyapi",
+    "test": "python -m unittest discover -s tests"
+  }
+}

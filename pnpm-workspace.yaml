@@ -1,0 +1,36 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+catalogMode: prefer
+
+catalog:
+  "@types/node": ^24
+  typescript: ^5
+  vite: npm:@voidzero-dev/vite-plus-core@latest
+  vitest: npm:@voidzero-dev/vite-plus-test@latest
+  vite-plus: latest
+  tailwindcss: ^4.3.0
+  "@tailwindcss/vite": ^4.3.0
+  lucide-vue-next: ^1.0.0
+  reka-ui: ^2.9.7
+  class-variance-authority: ^0.7.1
+  clsx: ^2.1.1
+  tailwind-merge: ^3.6.0
+  markdown-it: ^14.1.1
+  dompurify: ^3.4.3
+  shiki: ^4.0.2
+  "@types/markdown-it": ^14.1.2
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
+allowBuilds:
+  vue-demi: true
