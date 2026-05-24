@@ -1,6 +1,6 @@
 import unittest
 
-from pyapi.agents.prompts import assistant_system_prompt
+from pyapi.agents.system_prompt import assistant_system_prompt
 from pyapi.providers import EmptyModelResponseError
 from pyapi.providers.compatible import build_messages, extract_message_content
 
@@ -37,7 +37,7 @@ class ProviderParsingTest(unittest.TestCase):
 
         self.assertIn("Career Pilot", prompt)
         self.assertIn("<tool_call>", prompt)
-        for tool in ("ls", "grep", "read_file", "sqlite_query", "explain_context", "fetch_url", "read_llms_txt"):
+        for tool in ("ls", "grep", "read_file", "explain_context", "fetch_url", "read_llms_txt"):
             self.assertIn(tool, prompt)
         self.assertIn("local_inspect", prompt)
         self.assertIn("data_inspect", prompt)

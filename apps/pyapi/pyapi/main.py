@@ -8,7 +8,10 @@ from fastapi.responses import JSONResponse
 
 from .agents import build_catalog
 from .config import load_config
+from .hooks import HookRegistry
+from .hooks.builtins import register_builtins
 from .logging import redacted_key
+from .memory import MemoryStore
 from .providers import create_chat_provider
 from .routes import create_router
 from .store import Store
@@ -44,6 +47,9 @@ logger.info(
 store = Store(config.database_url)
 chat_provider = create_chat_provider(config.chat)
 catalog = build_catalog(config.agents)
+memory_store = MemoryStore(config.database_url)
+hooks = HookRegistry()
+lifecycle = register_builtins(hooks, memory_store=memory_store, context=config.context)
 app = FastAPI(title="Career Pilot API")
 
 app.add_middleware(
@@ -53,7 +59,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
-app.include_router(create_router(store, chat_provider, config.chat, config.context, config.tools, catalog))
+app.include_router(create_router(store, chat_provider, config.chat, config.context, config.tools, catalog, hooks, lifecycle))
 
 
 @app.exception_handler(HTTPException)

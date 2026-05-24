@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from pyapi.context import build_llm_context
 from pyapi.dependencies import AppServices
-from pyapi.agents.prompts import assistant_system_prompt
-from pyapi.providers import MODEL_EMPTY_RESPONSE_MESSAGE, ChatResult, EmptyModelResponseError
+from pyapi.agents.loop import append_tool_turns, tool_step
+from pyapi.agents.system_prompt import assistant_system_prompt
+from pyapi.providers import MODEL_EMPTY_RESPONSE_MESSAGE, ChatResult, EmptyModelResponseError, Turn
 from pyapi.store import MessageRecord, NotFoundError
-from pyapi.tools import execute_tool_call, format_tool_result, parse_tool_call
 
 from .dispatch import dispatch_delegate
 
 from .titles import title_session_from_first_prompt
+
+logger = logging.getLogger("pyapi.services.conversation")
 
 
 @dataclass(frozen=True)
@@ -54,8 +56,9 @@ async def create_assistant_response(
     context_messages: list[MessageRecord],
 ) -> AssistantResponseResult:
     store = services.store
-    history = build_llm_context(context_messages, services.context)
-    result = await complete_with_fallback(services, history)
+    messages = build_llm_context(context_messages, services.context)
+    turns = [message.to_turn() for message in messages]
+    result = await complete_with_fallback(services, turns, session_id)
     assistant_message = store.create_message(
         session_id,
         "assistant",
@@ -73,10 +76,11 @@ async def create_assistant_response(
 
 async def complete_with_fallback(
     services: AppServices,
-    history: list[MessageRecord],
+    history: list[Turn],
+    session_id: str,
 ) -> ChatResult:
     try:
-        return await complete_with_tools(services, history)
+        return await complete_with_tools(services, history, session_id)
     except EmptyModelResponseError:
         return ChatResult(
             content=MODEL_EMPTY_RESPONSE_MESSAGE,
@@ -87,67 +91,63 @@ async def complete_with_fallback(
 
 async def complete_with_tools(
     services: AppServices,
-    history: list[MessageRecord],
+    history: list[Turn],
+    session_id: str,
 ) -> ChatResult:
+    services.lifecycle.turn_start(session_id, agent="main")
+    logger.info(
+        "turn.start session_id=%s history_turns=%d max_iterations=%d",
+        session_id, len(history), services.tools.max_iterations,
+    )
     system_prompt = assistant_system_prompt(
         services.tools.enabled,
         services.tools.internet_enabled,
         catalog=services.catalog,
     )
-    tool_history = list(history)
+    turns = list(history)
+    max_iterations = services.tools.max_iterations
 
-    for attempt in range(services.tools.max_iterations + 1):
-        result = await services.chat_provider.complete(
-            tool_history,
-            services.context.max_response_tokens,
-            system_prompt=system_prompt,
-        )
-
-        delegated = await dispatch_delegate(services, result.content)
-        if delegated is not None:
-            return delegated
-
-        tool_request = parse_tool_call(result.content) if services.tools.enabled else None
-        if tool_request is None:
-            return result
-
-        if attempt >= services.tools.max_iterations:
-            return ChatResult(
-                content="I could not finish the request because the tool loop reached its configured limit.",
-                provider=result.provider,
-                model=result.model,
+    try:
+        for attempt in range(max_iterations + 1):
+            logger.info("turn.iteration session_id=%s attempt=%d/%d", session_id, attempt + 1, max_iterations + 1)
+            step = await tool_step(
+                services.chat_provider,
+                system_prompt,
+                turns,
+                services.context.max_response_tokens,
+                session_id=session_id,
+                tools_config=services.tools,
+                hooks=services.hooks,
             )
 
-        tool_result = execute_tool_call(services.tools, tool_request, current_session_id=current_session_id(tool_history))
-        tool_history.append(synthetic_message("assistant", result.content))
-        tool_history.append(synthetic_message("system", format_tool_result(tool_result)))
+            delegated = await dispatch_delegate(services, step.chat_result.content, session_id)
+            if delegated is not None:
+                services.lifecycle.turn_end(session_id, reason="delegated")
+                return delegated
 
-    return ChatResult(
-        content="I could not finish the request because the tool loop reached its configured limit.",
-        provider=services.chat_provider.provider,
-        model=services.chat_provider.model,
-    )
+            if step.tool_request is None:
+                services.lifecycle.turn_end(session_id, reason="final_answer")
+                return step.chat_result
 
+            if attempt >= max_iterations:
+                services.lifecycle.turn_end(session_id, reason="tool_loop_limit")
+                return ChatResult(
+                    content="I could not finish the request because the tool loop reached its configured limit.",
+                    provider=step.chat_result.provider,
+                    model=step.chat_result.model,
+                )
 
-def synthetic_message(role: str, content: str) -> MessageRecord:
-    return MessageRecord(
-        id=f"tool_{role}",
-        session_id="tool_loop",
-        role=role,
-        content=content,
-        provider=None,
-        model=None,
-        parent_message_id=None,
-        active_response_id=None,
-        created_at=datetime.now(timezone.utc).isoformat(),
-    )
+            append_tool_turns(turns, step)
 
-
-def current_session_id(history: list[MessageRecord]) -> str | None:
-    for message in reversed(history):
-        if message.session_id:
-            return message.session_id
-    return None
+        services.lifecycle.turn_end(session_id, reason="tool_loop_limit_fallthrough")
+        return ChatResult(
+            content="I could not finish the request because the tool loop reached its configured limit.",
+            provider=services.chat_provider.provider,
+            model=services.chat_provider.model,
+        )
+    except Exception:
+        services.lifecycle.turn_end(session_id, reason="exception")
+        raise
 
 
 def find_regeneration_anchor(history: list[MessageRecord], message_id: str) -> MessageRecord:

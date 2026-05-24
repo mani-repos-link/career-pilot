@@ -21,6 +21,8 @@ class ChatConfig:
 class ContextConfig:
     max_response_tokens: int
     max_history_messages: int
+    max_memory_chars: int
+    llm_call_throttle_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,8 @@ def load_config() -> Config:
         context=ContextConfig(
             max_response_tokens=int_env("MAX_RESPONSE_TOKENS", 2000),
             max_history_messages=max(1, int_env("MAX_HISTORY_MESSAGES", 30)),
+            max_memory_chars=max(0, int_env("MAX_MEMORY_CHARS", 2000)),
+            llm_call_throttle_seconds=max(0.0, float_env("LLM_CALL_THROTTLE_SECONDS", 0.0)),
         ),
         tools=ToolConfig(
             enabled=bool_env("TOOLS_ENABLED", False),
@@ -128,7 +132,7 @@ def parse_agent_llm(raw: str, default_provider: str, default_model: str) -> Agen
         return AgentLLM(provider=default_provider, model=raw)
     provider_part, model_part = raw.split("|:", 1)
     provider_part = provider_part.strip().lower() or default_provider
-    model_part = model_part.strip() or default_model
+    model_part = model_part.strip().lstrip(":").strip() or default_model
     return AgentLLM(provider=provider_part, model=model_part)
 
 
@@ -142,6 +146,31 @@ def provider_http_referer() -> str:
 
 def provider_app_title() -> str:
     return env("PROVIDER_APP_TITLE", "Career Pilot")
+
+
+def find_config_dir(marker: str = "agents.yml") -> Path:
+    return find_repo_dir("config", marker)
+
+
+def find_migrations_dir(marker: str = "001_init.sql") -> Path:
+    return find_repo_dir("migrations", marker)
+
+
+def find_repo_root() -> Path:
+    return find_config_dir().parent
+
+
+def find_data_dir() -> Path:
+    return find_repo_root() / "data"
+
+
+def find_repo_dir(dirname: str, marker: str) -> Path:
+    start = Path(__file__).resolve().parent
+    for path in [start, *start.parents]:
+        candidate = path / dirname
+        if (candidate / marker).is_file():
+            return candidate
+    raise RuntimeError(f"{dirname}/{marker} not found upward from {start}")
 
 
 def load_dotenv_upwards(filename: str = ".env") -> Path | None:

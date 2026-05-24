@@ -32,7 +32,7 @@ def create_messages_router(services: AppServices) -> APIRouter:
             "messages": [message.to_api() for message in messages],
             "page": {
                 "hasMore": has_more,
-                "nextBefore": messages[0].created_at if has_more and messages else None,
+                "nextBefore": messages[0].created_at.isoformat().replace("+00:00", "Z") if has_more and messages else None,
             },
         }
 

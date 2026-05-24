@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from pyapi.store import MessageRecord
+from .turn import Turn
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ class ChatProvider(Protocol):
 
     async def complete(
         self,
-        history: list[MessageRecord],
+        history: list[Turn],
         max_response_tokens: int,
         system_prompt: str | None = None,
     ) -> ChatResult: ...

@@ -5,8 +5,7 @@ import time
 
 import httpx
 
-from pyapi.store import MessageRecord
-
+from .turn import Turn
 from .types import ChatResult, EmptyModelResponseError
 
 logger = logging.getLogger("pyapi.provider")
@@ -31,7 +30,7 @@ class OpenAICompatibleProvider:
 
     async def complete(
         self,
-        history: list[MessageRecord],
+        history: list[Turn],
         max_response_tokens: int,
         system_prompt: str | None = None,
     ) -> ChatResult:
@@ -83,16 +82,22 @@ class OpenAICompatibleProvider:
         if response.status_code < 200 or response.status_code >= 300:
             message = payload.get("error", {}).get("message") or response.reason_phrase
             logger.warning(
-                "%s error status=%d message=%s",
+                "%s error status=%d message=%s body=%s",
                 self.provider,
                 response.status_code,
                 message,
+                response.text,
             )
-            raise ValueError(f"{self.provider} error: {message}")
+            raise ValueError(f"{self.provider} error {response.status_code}: {message}")
 
         choices = payload.get("choices") or []
         if not choices:
-            logger.warning("%s returned no choices payload_keys=%s", self.provider, sorted(payload.keys()))
+            logger.warning(
+                "%s returned no choices payload_keys=%s body=%s",
+                self.provider,
+                sorted(payload.keys()),
+                response.text,
+            )
             raise EmptyModelResponseError(self.provider)
 
         content = extract_message_content(choices[0])
@@ -107,13 +112,13 @@ class OpenAICompatibleProvider:
         )
 
 
-def build_messages(history: list[MessageRecord], system_prompt: str | None = None) -> list[dict[str, str]]:
+def build_messages(history: list[Turn], system_prompt: str | None = None) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-    for message in history:
-        if message.role in {"user", "assistant", "system"}:
-            messages.append({"role": message.role, "content": message.content})
+    for turn in history:
+        if turn.role in {"user", "assistant", "system"}:
+            messages.append({"role": turn.role, "content": turn.content})
     return messages
 
 

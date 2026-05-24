@@ -2,18 +2,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import asyncio
-import sqlite3
 import unittest
 
 from pyapi.config import ContextConfig, ToolConfig
-from pyapi.providers import ChatResult
+from pyapi.hooks import HookRegistry
+from pyapi.providers import ChatResult, Turn
 from pyapi.services.conversation import complete_with_tools
-from pyapi.store import MessageRecord
 from pyapi.tools import execute_tool_call, parse_tool_call
 
 
 def context_config() -> ContextConfig:
-    return ContextConfig(max_response_tokens=100, max_history_messages=30)
+    return ContextConfig(max_response_tokens=100, max_history_messages=30, max_memory_chars=2000)
 
 
 class ToolTest(unittest.TestCase):
@@ -191,59 +190,108 @@ class ToolTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertIn("internet tools are disabled", result.output)
 
-    def test_sqlite_query_allows_select_only(self) -> None:
-        with TemporaryDirectory() as directory:
-            db_path = Path(directory) / "test.sqlite"
-            connection = sqlite3.connect(db_path)
-            connection.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)")
-            connection.execute("INSERT INTO notes (body) VALUES ('hello')")
-            connection.commit()
-            connection.close()
-            config = tool_config(Path(directory), database_url=f"file:{db_path}")
-
-            result = execute_tool_call(
-                config,
-                parse_tool_call('<tool_call>{"tool":"sqlite_query","arguments":{"query":"SELECT body FROM notes","max_rows":10}}</tool_call>'),
-            )
-
-            self.assertTrue(result.ok)
-            self.assertIn("hello", result.output)
-
-            blocked = execute_tool_call(
-                config,
-                parse_tool_call('<tool_call>{"tool":"sqlite_query","arguments":{"query":"DELETE FROM notes"}}</tool_call>'),
-            )
-            self.assertFalse(blocked.ok)
-            self.assertIn("only allows SELECT", blocked.output)
-
     def test_explain_context_uses_current_session(self) -> None:
+        from pyapi.store import Store
+
         with TemporaryDirectory() as directory:
-            db_path = Path(directory) / "test.sqlite"
-            connection = sqlite3.connect(db_path)
-            connection.executescript(
-                """
-                CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, created_at TEXT, updated_at TEXT);
-                CREATE TABLE messages (
-                  id TEXT PRIMARY KEY, session_id TEXT, role TEXT, content TEXT,
-                  provider TEXT, model TEXT, parent_message_id TEXT, active_response_id TEXT,
-                  created_at TEXT
-                );
-                """
-            )
-            connection.execute("INSERT INTO sessions VALUES ('ses_1', 'test', 'now', 'now')")
-            connection.execute("INSERT INTO messages VALUES ('msg_1', 'ses_1', 'user', 'hello', NULL, NULL, NULL, NULL, '1')")
-            connection.commit()
-            connection.close()
-            config = tool_config(Path(directory), database_url=f"file:{db_path}")
+            db_url = f"sqlite:///{Path(directory) / 'test.sqlite'}"
+            store = Store(db_url, create_tables=True)
+            session = store.create_session("test")
+            store.create_message(session.id, "user", "hello")
+            store.close()
+            config = tool_config(Path(directory), database_url=db_url)
 
             result = execute_tool_call(
                 config,
                 parse_tool_call('<tool_call>{"tool":"explain_context","arguments":{}}</tool_call>'),
-                current_session_id="ses_1",
+                current_session_id=session.id,
             )
 
             self.assertTrue(result.ok)
-            self.assertIn('"sessionId": "ses_1"', result.output)
+            self.assertIn(f'"sessionId": "{session.id}"', result.output)
+
+    def test_render_resume_writes_markdown_and_html(self) -> None:
+        import json
+        from unittest import mock
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir = root / "data"
+            (data_dir / "applications").mkdir(parents=True)
+            config = tool_config(root)
+
+            with mock.patch("pyapi.tools.render.find_data_dir", return_value=data_dir):
+                result = execute_tool_call(
+                    config,
+                    parse_tool_call(
+                        '<tool_call>{"tool":"render_resume","arguments":{"markdown":"# Resume\\n\\nHello","slug":"Acme Co"}}</tool_call>'
+                    ),
+                )
+
+            self.assertTrue(result.ok, result.output)
+            payload = json.loads(result.output)
+            self.assertEqual(payload["slug"], "acme-co")
+            md_path = Path(payload["markdown_path"])
+            html_path = Path(payload["html_path"])
+            self.assertTrue(md_path.exists())
+            self.assertTrue(html_path.exists())
+            self.assertIn("# Resume", md_path.read_text())
+            self.assertIn("<h1>Resume</h1>", html_path.read_text())
+
+    def test_save_document_writes_cover_letter_files(self) -> None:
+        import json
+        from unittest import mock
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir = root / "data"
+            (data_dir / "applications").mkdir(parents=True)
+            config = tool_config(root)
+
+            with mock.patch("pyapi.tools.render.find_data_dir", return_value=data_dir):
+                result = execute_tool_call(
+                    config,
+                    parse_tool_call(
+                        '<tool_call>{"tool":"save_document","arguments":'
+                        '{"slug":"legartis-fullstack","filename":"cover_letter",'
+                        '"markdown":"Dear Legartis,\\n\\nI am applying."}}</tool_call>'
+                    ),
+                )
+
+            self.assertTrue(result.ok, result.output)
+            payload = json.loads(result.output)
+            self.assertEqual(payload["slug"], "legartis-fullstack")
+            self.assertEqual(payload["filename"], "cover_letter")
+            md_path = Path(payload["markdown_path"])
+            html_path = Path(payload["html_path"])
+            self.assertTrue(md_path.exists())
+            self.assertTrue(html_path.exists())
+            self.assertTrue(md_path.name.endswith("cover_letter.md"))
+            self.assertTrue(html_path.name.endswith("cover_letter.html"))
+            self.assertIn("I am applying.", md_path.read_text())
+
+    def test_save_document_requires_filename(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = tool_config(Path(directory))
+            result = execute_tool_call(
+                config,
+                parse_tool_call(
+                    '<tool_call>{"tool":"save_document","arguments":'
+                    '{"slug":"x","markdown":"hi"}}</tool_call>'
+                ),
+            )
+            self.assertFalse(result.ok)
+            self.assertIn("filename is required", result.output)
+
+    def test_render_pdf_requires_html_or_path(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = tool_config(Path(directory))
+            result = execute_tool_call(
+                config,
+                parse_tool_call('<tool_call>{"tool":"render_pdf","arguments":{}}</tool_call>'),
+            )
+            self.assertFalse(result.ok)
+            self.assertIn("html_path", result.output)
 
     def test_conversation_loop_runs_tool_then_returns_final_answer(self) -> None:
         async def run() -> None:
@@ -251,15 +299,18 @@ class ToolTest(unittest.TestCase):
                 root = Path(directory)
                 (root / "notes.txt").write_text("phase three tool result")
                 provider = FakeToolProvider()
+                from pyapi.hooks.lifecycle_logger import LifecycleLogger
                 services = SimpleNamespace(
                     chat_provider=provider,
                     chat_config=None,
                     context=context_config(),
                     tools=tool_config(root),
                     catalog={},
+                    hooks=HookRegistry(),
+                    lifecycle=LifecycleLogger(),
                 )
 
-                result = await complete_with_tools(services, [message("user", "list files")])
+                result = await complete_with_tools(services, [Turn("user", "list files")], "session_1")
 
                 self.assertEqual(result.content, "I found notes.txt.")
                 self.assertEqual(len(provider.histories), 2)
@@ -268,7 +319,7 @@ class ToolTest(unittest.TestCase):
         asyncio.run(run())
 
 
-def tool_config(root: Path, internet_enabled: bool = False, database_url: str = "file::memory:") -> ToolConfig:
+def tool_config(root: Path, internet_enabled: bool = False, database_url: str = "sqlite://") -> ToolConfig:
     return ToolConfig(
         enabled=True,
         database_url=database_url,
@@ -282,30 +333,16 @@ def tool_config(root: Path, internet_enabled: bool = False, database_url: str = 
     )
 
 
-def message(role: str, content: str) -> MessageRecord:
-    return MessageRecord(
-        id=f"{role}_1",
-        session_id="session_1",
-        role=role,
-        content=content,
-        provider=None,
-        model=None,
-        parent_message_id=None,
-        active_response_id=None,
-        created_at="2026-05-20T00:00:00+00:00",
-    )
-
-
 class FakeToolProvider:
     provider = "fake"
     model = "fake-model"
 
     def __init__(self) -> None:
-        self.histories: list[list[MessageRecord]] = []
+        self.histories: list[list[Turn]] = []
 
     async def complete(
         self,
-        history: list[MessageRecord],
+        history: list[Turn],
         max_response_tokens: int,
         system_prompt: str | None = None,
     ) -> ChatResult:

@@ -11,3 +11,6 @@ data
 *.sqlite-shm
 *.sqlite-wal
 .tmp/
+!data/cookies.example.yml
+!data/job-search-portals.example.yml
+

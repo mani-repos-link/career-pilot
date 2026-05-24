@@ -13,11 +13,12 @@ class StoreTest(unittest.TestCase):
         return ContextConfig(
             max_response_tokens=100,
             max_history_messages=max_history_messages,
+            max_memory_chars=2000,
         )
 
     def test_session_and_message_lifecycle(self) -> None:
         with TemporaryDirectory() as directory:
-            store = Store(f"file:{Path(directory) / 'test.sqlite'}")
+            store = Store(f"sqlite:///{Path(directory) / 'test.sqlite'}", create_tables=True)
             session = store.create_session("Test")
             message = store.create_message(session.id, "user", "Hello")
 
@@ -34,7 +35,7 @@ class StoreTest(unittest.TestCase):
 
     def test_message_pagination_returns_latest_and_older_pages(self) -> None:
         with TemporaryDirectory() as directory:
-            store = Store(f"file:{Path(directory) / 'test.sqlite'}")
+            store = Store(f"sqlite:///{Path(directory) / 'test.sqlite'}", create_tables=True)
             session = store.create_session("Test")
 
             for content in ["one", "two", "three", "four"]:
@@ -53,7 +54,7 @@ class StoreTest(unittest.TestCase):
 
     def test_context_uses_only_active_response_for_prompt(self) -> None:
         with TemporaryDirectory() as directory:
-            store = Store(f"file:{Path(directory) / 'test.sqlite'}")
+            store = Store(f"sqlite:///{Path(directory) / 'test.sqlite'}", create_tables=True)
             session = store.create_session("Test")
             prompt = store.create_message(session.id, "user", "Explain this")
             first = store.create_message(
@@ -86,7 +87,7 @@ class StoreTest(unittest.TestCase):
 
     def test_build_llm_context_caps_recent_messages(self) -> None:
         with TemporaryDirectory() as directory:
-            store = Store(f"file:{Path(directory) / 'test.sqlite'}")
+            store = Store(f"sqlite:///{Path(directory) / 'test.sqlite'}", create_tables=True)
             session = store.create_session("Test")
 
             for content in ["one", "two", "three", "four", "five"]:

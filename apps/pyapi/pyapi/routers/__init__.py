@@ -4,6 +4,8 @@ from fastapi import APIRouter
 
 from pyapi.agents import SubAgent
 from pyapi.config import ChatConfig, ContextConfig, ToolConfig
+from pyapi.hooks import HookRegistry
+from pyapi.hooks.lifecycle_logger import LifecycleLogger
 from pyapi.providers import ChatProvider
 from pyapi.store import Store
 
@@ -20,6 +22,8 @@ def create_router(
     context: ContextConfig,
     tools: ToolConfig,
     catalog: dict[str, SubAgent],
+    hooks: HookRegistry,
+    lifecycle: LifecycleLogger,
 ) -> APIRouter:
     services = AppServices(
         store=store,
@@ -28,6 +32,8 @@ def create_router(
         context=context,
         tools=tools,
         catalog=catalog,
+        hooks=hooks,
+        lifecycle=lifecycle,
     )
     router = APIRouter()
 

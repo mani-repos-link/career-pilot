@@ -1,0 +1,34 @@
+# Sub-agent registry. Each agent's system prompt lives in prompts/agents/<name>.md.
+# LLM provider/model is set per-agent in .env as <NAME>_LLM=provider|:model.
+agents:
+  - name: resume_tailor
+    prompt: prompts/agents/resume_tailor.md
+    tools: [remember, forget, recall, render_resume, save_document, render_pdf]
+    description: >
+      Produces a tailored resume AND/OR cover letter for a job description.
+      The candidate profile is auto-injected — do NOT ask the user for a resume. As
+      soon as a JD is present, delegate with the full JD text plus a leading line
+      saying whether to produce a resume, a cover letter, or both. Only ask the user
+      if the JD itself is missing.
+
+  - name: job_scout
+    prompt: prompts/agents/job_scout.md
+    tools: [remember, forget, recall, parse_jd, search_jobs, store_job, store_jd, fetch_url]
+    description: >
+      Searches LinkedIn / Indeed for jobs and parses job descriptions.
+      Use when the user asks to find jobs, list roles, or paste a JD URL for parsing.
+      Persists discovered jobs + JDs via store_job / store_jd.
+
+  - name: applier
+    prompt: prompts/agents/applier.md
+    tools: [remember, forget, recall]
+    description: >
+      Auto-applies to a job via browser automation (LinkedIn Easy Apply, Indeed quick apply).
+      Use only when the user has confirmed they want to submit an application for a specific job_id.
+
+  - name: tracker
+    prompt: prompts/agents/tracker.md
+    tools: [remember, forget, recall, log_application, update_status, list_applications]
+    description: >
+      Reads and writes application records in the database.
+      Use to log a new application, update status, list past applications, or fetch a single record.

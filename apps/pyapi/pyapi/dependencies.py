@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from pyapi.agents import SubAgent
 from pyapi.config import ChatConfig, ContextConfig, ToolConfig
+from pyapi.hooks import HookRegistry
+from pyapi.hooks.lifecycle_logger import LifecycleLogger
 from pyapi.providers import ChatProvider
 from pyapi.store import Store
 
@@ -16,3 +18,5 @@ class AppServices:
     context: ContextConfig
     tools: ToolConfig
     catalog: dict[str, SubAgent]
+    hooks: HookRegistry
+    lifecycle: LifecycleLogger

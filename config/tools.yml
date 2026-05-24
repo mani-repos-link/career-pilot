@@ -1,0 +1,102 @@
+# Tool registry. The runtime handler for each tool lives in Python (see registry.py).
+# YAML carries metadata: capability grouping, human description, and gating flags.
+
+capabilities:
+  local_inspect:
+    purpose: Read-only inspection of the workspace — list, search, read files, find symbols.
+    requires_internet: false
+  data_inspect:
+    purpose: Read-only inspection of app state — explain raw recent messages sent to the model for the current session.
+    requires_internet: false
+  web_surf:
+    purpose: Read live public web pages and search results. Real fetch, not pretraining. Public HTTP(S) only.
+    requires_internet: true
+  memory:
+    purpose: Read and write durable key/value memories scoped to the session or globally. Persists across turns.
+    requires_internet: false
+  render:
+    purpose: Render the agent's output (e.g. a tailored resume markdown) to disk as markdown + styled HTML ready for PDF print.
+    requires_internet: false
+  job_hunt:
+    purpose: Find, parse, and record jobs on portals (LinkedIn, Indeed). Cookie-authenticated; portal cookies live in data/cookies.yml.
+    requires_internet: true
+  applications_db:
+    purpose: Read and write the candidate's job applications, jobs, and JD records in Postgres.
+    requires_internet: false
+
+tools:
+  - name: ls
+    capability: local_inspect
+    description: List files under a workspace path. args:{path,recursive,max_entries}.
+  - name: grep
+    capability: local_inspect
+    description: Search workspace text files. args:{pattern,path,case_sensitive,max_matches}.
+  - name: read_file
+    capability: local_inspect
+    description: Read a bounded text-file range. args:{path,start_line,max_lines}.
+  - name: project_tree
+    capability: local_inspect
+    description: Return a compact file tree. args:{path,max_depth,max_entries}.
+  - name: find_symbol
+    capability: local_inspect
+    description: Find code references to a symbol. args:{symbol,path,max_matches}.
+  - name: explain_context
+    capability: data_inspect
+    description: Explain raw recent messages for the current session. args:{}.
+  - name: fetch_url
+    capability: web_surf
+    description: Read one public HTTP/HTTPS URL. args:{url}.
+  - name: curl
+    capability: web_surf
+    description: Alias for fetch_url. args:{url}.
+  - name: wget
+    capability: web_surf
+    description: Alias for fetch_url. args:{url}.
+  - name: web_search
+    capability: web_surf
+    description: Search the public web. args:{query,max_results}.
+  - name: read_llms_txt
+    capability: web_surf
+    description: Read /llms.txt and /llms-full.txt when available. args:{url}.
+  - name: crawl_site
+    capability: web_surf
+    description: Crawl a few same-site pages. args:{url,max_pages}.
+  - name: remember
+    capability: memory
+    description: Save a fact for later turns. args:{key,content,scope?}. scope defaults to "session"; use "global" for cross-session facts.
+  - name: forget
+    capability: memory
+    description: Remove a saved fact. args:{key,scope?}. scope defaults to "session".
+  - name: recall
+    capability: memory
+    description: List saved facts for the current session plus globals. args:{}.
+  - name: render_resume
+    capability: render
+    description: Save a resume to disk as markdown + styled HTML + PDF under data/applications/<timestamp>-<slug>/resume.{md,html,pdf}. args:{markdown, slug?}. slug should be short like "acme-senior-python".
+  - name: save_document
+    capability: render
+    description: Save any markdown document to disk as .md + styled .html + .pdf under data/applications/<timestamp>-<slug>/<filename>.{md,html,pdf}. Use for cover letters, motivation letters, notes. args:{slug, filename, markdown}. filename has NO extension (e.g. "cover_letter").
+  - name: render_pdf
+    capability: render
+    description: Convert HTML to PDF. Pass html_path (existing .html file → writes <stem>.pdf next to it) OR html (raw HTML string) with slug+filename. args:{html_path?, html?, slug?, filename?}.
+  - name: parse_jd
+    capability: job_hunt
+    description: Parse a job description from a URL or raw text. Extracts title, company, location, salary, skills, languages, and cleaned text. args:{url?, text?} — provide exactly one.
+  - name: search_jobs
+    capability: job_hunt
+    description: Search a portal for jobs via cookie-authenticated Playwright. Returns a list of {title, company, location, url, external_id}. args:{query, location?, portal?, max_results?}. portal defaults to "linkedin". Supports "linkedin" and "indeed".
+  - name: store_job
+    capability: applications_db
+    description: Insert or upsert a job row. args:{portal, url, title, company?, location?, salary_min?, salary_max?, salary_currency?, external_id?}. Returns the job id.
+  - name: store_jd
+    capability: applications_db
+    description: Insert a parsed JD record linked optionally to a job. args:{raw_text, job_id?, source_url?, parsed?}. Returns the jd id.
+  - name: log_application
+    capability: applications_db
+    description: Record that the candidate is applying or has applied to a job. args:{job_id, resume_id?, status?, notes?}. status defaults to "planned".
+  - name: update_status
+    capability: applications_db
+    description: Update an application's status and optionally append notes. args:{id, status, notes?}. status ∈ planned|draft|submitted|responded|interview|offer|rejected|withdrawn.
+  - name: list_applications
+    capability: applications_db
+    description: List the candidate's applications joined with job info. args:{status?, limit?}. limit defaults to 25.

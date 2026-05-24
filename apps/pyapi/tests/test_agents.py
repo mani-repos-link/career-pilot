@@ -3,7 +3,6 @@ import unittest
 from pyapi.agents import (
     CATALOG,
     DelegateCall,
-    orchestrator_system_prompt,
     parse_delegate,
 )
 
@@ -16,17 +15,6 @@ class CatalogTest(unittest.TestCase):
         for agent in CATALOG.values():
             self.assertTrue(agent.system_prompt.strip())
             self.assertTrue(agent.description.strip())
-
-
-class OrchestratorPromptTest(unittest.TestCase):
-    def test_prompt_lists_every_agent(self) -> None:
-        prompt = orchestrator_system_prompt(CATALOG)
-        for name in CATALOG:
-            self.assertIn(name, prompt)
-
-    def test_prompt_shows_delegate_tag(self) -> None:
-        prompt = orchestrator_system_prompt(CATALOG)
-        self.assertIn("<delegate>", prompt)
 
 
 class ParseDelegateTest(unittest.TestCase):
@@ -46,6 +34,37 @@ class ParseDelegateTest(unittest.TestCase):
 
     def test_parse_returns_none_with_missing_fields(self) -> None:
         self.assertIsNone(parse_delegate('<delegate>{"agent":"resume_tailor"}</delegate>'))
+
+    def test_parse_recognises_tool_call_with_tool_delegate(self) -> None:
+        content = (
+            '<tool_call>{"tool":"delegate","arguments":'
+            '{"agent":"resume_tailor","instruction":"Tailor for SRE role"}}</tool_call>'
+        )
+        call = parse_delegate(content, known_agents=CATALOG.keys())
+        self.assertEqual(call, DelegateCall(agent="resume_tailor", instruction="Tailor for SRE role"))
+
+    def test_parse_recognises_sub_agent_name_as_tool_with_instruction(self) -> None:
+        content = (
+            '<tool_call>{"tool":"resume_tailor","arguments":'
+            '{"instruction":"Tailor for SRE role"}}</tool_call>'
+        )
+        call = parse_delegate(content, known_agents=CATALOG.keys())
+        self.assertEqual(call, DelegateCall(agent="resume_tailor", instruction="Tailor for SRE role"))
+
+    def test_parse_recognises_sub_agent_with_freeform_arguments(self) -> None:
+        content = (
+            '<tool_call>{"tool":"resume_tailor","arguments":'
+            '{"company":"Rocken","role":"Software Engineer"}}</tool_call>'
+        )
+        call = parse_delegate(content, known_agents=CATALOG.keys())
+        self.assertIsNotNone(call)
+        assert call is not None
+        self.assertEqual(call.agent, "resume_tailor")
+        self.assertIn("Rocken", call.instruction)
+
+    def test_parse_ignores_tool_call_for_unknown_agent(self) -> None:
+        content = '<tool_call>{"tool":"web_search","arguments":{"q":"x"}}</tool_call>'
+        self.assertIsNone(parse_delegate(content, known_agents=CATALOG.keys()))
 
 
 if __name__ == "__main__":
