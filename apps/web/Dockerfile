@@ -6,8 +6,13 @@ RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/pyapi/package.json ./apps/pyapi/
 COPY packages/utils/package.json ./packages/utils/
 RUN pnpm install --frozen-lockfile
+
+RUN VITE_BIN=$(find /repo/node_modules/.pnpm -type f -path '*/vite@*/node_modules/vite/bin/vite.js' | head -1) && \
+    echo "vite bin: $VITE_BIN" && \
+    ln -sf "$VITE_BIN" /repo/node_modules/.bin/vite
 
 COPY packages ./packages
 COPY apps/web ./apps/web
